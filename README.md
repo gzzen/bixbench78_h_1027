@@ -18,9 +18,10 @@ plus DeepSeek grader), which scripts call by relative path only after freeze.
 - `scripts/`: run (`run_native.sh`, `run_b.sh`, `run_c.sh`, `run_h.sh`), continue, progress, export and recovery tools
 - `protocols/`: experiment substrate notes
 
-Fresh generation uses OpenCode v2 with either the direct DeepSeek API
-(`deepseek/deepseek-flash`) or an OpenAI Responses relay
-(`openai-relay/gpt-5.6-sol`). See [OPENCODE_DEEPSEEK.md](OPENCODE_DEEPSEEK.md)
+Fresh generation uses OpenCode v2 with the direct DeepSeek API
+(`deepseek/deepseek-flash`), an OpenAI Responses relay
+(`openai-relay/gpt-5.6-sol`), or Qwen through DashScope (`qwen/<id>`, e.g.
+`qwen/qwen-plus`). The grader's judge stays DeepSeek for every solver model. See [OPENCODE_DEEPSEEK.md](OPENCODE_DEEPSEEK.md)
 for setup, credentials, diagnostics and run commands.
 
 Restore the public `data/` tree as a sibling of this directory before

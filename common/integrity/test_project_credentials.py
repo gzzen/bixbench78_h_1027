@@ -100,5 +100,23 @@ class ProjectCredentialTests(unittest.TestCase):
                     self.relay_config()
 
 
+    def qwen_config(self):
+        return GatewayConfig.from_host("temporary-token", "qwen-plus", "qwen")
+
+    def test_qwen_uses_its_own_key_and_dashscope_china(self):
+        self.env_file.write_text("DEEPSEEK_API_KEY=deepseek-only\n")
+        with self.assertRaises(RuntimeError):
+            self.qwen_config()
+        self.env_file.write_text("DEEPSEEK_API_KEY=deepseek-only\nQWEN_API_KEY=qwen-only\n")
+        config = self.qwen_config()
+        self.assertEqual(config.credential, "qwen-only")
+        self.assertEqual(config.upstream, "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        self.assertEqual(config.model_path, "/chat/completions")
+        self.assertNotIn("QWEN_API_KEY", os.environ)
+        self.env_file.write_text("QWEN_API_KEY=qwen-only\nQWEN_BASE_URL=http://dashscope.example\n")
+        with self.assertRaises(ValueError):
+            self.qwen_config()
+
+
 if __name__ == "__main__":
     unittest.main()

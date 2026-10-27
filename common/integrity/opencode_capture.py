@@ -23,6 +23,9 @@ PROVIDERS = {
     # OpenAI Responses API through a third-party relay (e.g. https://xfastapi.ai).
     "openai-relay": {"pattern": r"gpt-[a-zA-Z0-9._-]+", "efforts": ("none", "low", "medium", "high", "xhigh"),
                      "name": "OpenAI relay", "wire_api": "responses"},
+    # Qwen through DashScope's OpenAI-compatible chat API; thinking is on/off only.
+    "qwen": {"pattern": r"(?:qwen|qwq)[a-zA-Z0-9._-]*", "efforts": ("none", "high"),
+             "name": "Qwen (DashScope)", "wire_api": "chat/completions"},
 }
 RELAY_LIMIT = {"context": 1_000_000, "output": 128_000}
 
@@ -32,7 +35,7 @@ def model_route(model: str) -> tuple[str, str]:
     provider, _, identifier = model.partition("/")
     route = PROVIDERS.get(provider)
     if route is None or not re.fullmatch(route["pattern"], identifier):
-        raise ValueError("--model must be deepseek/deepseek-<name> or openai-relay/gpt-<name>, "
+        raise ValueError("--model must be deepseek/deepseek-<name>, openai-relay/gpt-<name> or qwen/qwen<name>, "
                          "e.g. deepseek/deepseek-flash")
     return provider, identifier
 
@@ -79,6 +82,13 @@ def provider_config(model: str, effort: str, base_url: str = "http://127.0.0.1:8
             "package": "@opencode/ai/providers/deepseek",
             "settings": {"baseURL": base_url},
             "models": {identifier: {"body": body}},
+        }
+    elif provider == "qwen":
+        provider_entry = {
+            "env": ["NATIVE_B_GATEWAY_TOKEN"],
+            "package": "@opencode/ai/providers/openai-compatible",
+            "settings": {"baseURL": base_url},
+            "models": {identifier: {"body": {"enable_thinking": effort != "none"}}},
         }
     else:
         # Stateless Responses: OpenCode sends store=false and replays encrypted

@@ -20,6 +20,7 @@ DEFAULT_SCIENCE_HOSTS = ("mygene.info", "maayanlab.cloud", "www.ensembl.org",
                          "grch37.ensembl.org", "rest.ensembl.org")
 PROJECT_ENV = Path(__file__).resolve().parents[2] / ".env"
 DEFAULT_RELAY_BASE_URL = "https://xfastapi.ai"
+DEFAULT_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 # Reasoning models can stream nothing for minutes; matches OpenCode's chunk timeout.
 STREAM_IDLE_SECONDS = 300
 
@@ -56,14 +57,23 @@ def deepseek_api_key() -> str | None:
     return project_setting("DEEPSEEK_API_KEY")
 
 
-def relay_base_url() -> str:
-    """The OpenAI Responses relay; requests go to <base>/responses, as in Codex."""
-    base = (project_setting("OPENAI_RELAY_BASE_URL") or DEFAULT_RELAY_BASE_URL).rstrip("/")
+def base_url(variable: str, default: str) -> str:
+    base = (project_setting(variable) or default).rstrip("/")
     parsed = urlsplit(base)
     if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
             or parsed.query or parsed.fragment):
-        raise ValueError("OPENAI_RELAY_BASE_URL must be a plain https URL")
+        raise ValueError(f"{variable} must be a plain https URL")
     return base
+
+
+def relay_base_url() -> str:
+    """The OpenAI Responses relay; requests go to <base>/responses, as in Codex."""
+    return base_url("OPENAI_RELAY_BASE_URL", DEFAULT_RELAY_BASE_URL)
+
+
+def qwen_base_url() -> str:
+    """DashScope's OpenAI-compatible API; requests go to <base>/chat/completions."""
+    return base_url("QWEN_BASE_URL", DEFAULT_QWEN_BASE_URL)
 
 
 def public_address(host: str) -> str:
@@ -191,6 +201,8 @@ class GatewayConfig:
             key, base, path, variable = deepseek_api_key(), "https://api.deepseek.com/v1", "/chat/completions", "DEEPSEEK_API_KEY"
         elif provider == "openai-relay":
             key, base, path, variable = project_setting("OPENAI_RELAY_API_KEY"), relay_base_url(), "/responses", "OPENAI_RELAY_API_KEY"
+        elif provider == "qwen":
+            key, base, path, variable = project_setting("QWEN_API_KEY"), qwen_base_url(), "/chat/completions", "QWEN_API_KEY"
         else:
             raise ValueError("unsupported model provider")
         if not key:

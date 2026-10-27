@@ -100,6 +100,36 @@ experiment from DeepSeek runs, and its manifest records `provider: OpenAI relay`
 OpenCode compacts automatically when the context approaches the configured
 window. There is no separate setting for Codex's `model_auto_compact_token_limit`.
 
+## Qwen through DashScope (`qwen/<id>`)
+
+Qwen runs through DashScope's OpenAI-compatible chat API (China region by
+default). Set the key in `.env`:
+
+```bash
+# .env (host only; never mounted into attempts)
+QWEN_API_KEY=your-dashscope-key
+# Optional; requests go to <base>/chat/completions.
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+Then select the model with the `qwen/` prefix (`qwen*` or `qwq*` model IDs):
+
+```bash
+MODEL=qwen/qwen-plus REASONING_EFFORT=high NATIVE_B_RUN_ID=qwen_rep01 scripts/run_b.sh
+```
+
+OpenCode uses its `@opencode/ai/providers/openai-compatible` package. The only
+reasoning control is DashScope's thinking switch: `--reasoning-effort high`
+sends `enable_thinking: true` (the model's default thinking budget), and `none`
+sends `enable_thinking: false`. Other effort values are refused. The gateway
+binds the attempt token, the exact model ID and the `/chat/completions` route,
+and injects `QWEN_API_KEY` only there. The 256-request limit still applies.
+The manifest records `provider: Qwen (DashScope)`.
+
+A Qwen run is a separate experiment. C and H take their model from the frozen
+parent, so run B with Qwen first, then `scripts/run_c.sh` and `scripts/run_h.sh`
+on that B tag. Grading is unchanged; the grader's judge stays DeepSeek.
+
 ## Check the boundary, then run a small diagnostic
 
 The Docker smoke test uses mock model responses; it does not contact the real

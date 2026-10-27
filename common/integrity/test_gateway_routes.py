@@ -13,6 +13,7 @@ from common.integrity.attempt_gateway import STREAM_IDLE_SECONDS, AttemptGateway
 DEEPSEEK = GatewayConfig("attempt-token", "deepseek-flash", "https://api.deepseek.com/v1", "deepseek-key")
 RELAY = GatewayConfig("attempt-token", "gpt-5.6-sol", "https://xfastapi.ai", "relay-key",
                       model_path="/responses")
+QWEN = GatewayConfig("attempt-token", "qwen-plus", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-key")
 
 
 class GatewayRouteTests(unittest.TestCase):
@@ -58,12 +59,21 @@ class GatewayRouteTests(unittest.TestCase):
         self.assertEqual(connection.request.call_args.args, ("POST", "/v1/chat/completions"))
         self.assertEqual(connection.request.call_args.kwargs["headers"]["Authorization"], "Bearer deepseek-key")
 
+    def test_qwen_forwards_chat_completions_to_dashscope_with_qwen_key(self):
+        handler, dial, _, connection, _ = self.forward(QWEN, "/model/chat/completions", "qwen-plus")
+        handler.send_response.assert_called_once_with(200)
+        dial.assert_called_once_with("dashscope.aliyuncs.com", 443, None)
+        self.assertEqual(connection.request.call_args.args, ("POST", "/compatible-mode/v1/chat/completions"))
+        self.assertEqual(connection.request.call_args.kwargs["headers"]["Authorization"], "Bearer qwen-key")
+
     def test_wrong_route_model_or_token_never_reaches_upstream(self):
         for config, path, model, token in (
                 (RELAY, "/model/chat/completions", "gpt-5.6-sol", "attempt-token"),
                 (DEEPSEEK, "/model/responses", "deepseek-flash", "attempt-token"),
                 (RELAY, "/model/responses", "gpt-5.5", "attempt-token"),
-                (RELAY, "/model/responses", "gpt-5.6-sol", "wrong-token")):
+                (RELAY, "/model/responses", "gpt-5.6-sol", "wrong-token"),
+                (QWEN, "/model/chat/completions", "qwen-max", "attempt-token"),
+                (QWEN, "/model/responses", "qwen-plus", "attempt-token")):
             with self.subTest(path=path, model=model, token=token):
                 handler, dial, _, _, _ = self.forward(config, path, model, token)
                 handler.send_response.assert_called_once_with(403)
