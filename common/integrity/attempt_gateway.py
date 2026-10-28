@@ -76,13 +76,14 @@ def qwen_base_url() -> str:
     return base_url("QWEN_BASE_URL", DEFAULT_QWEN_BASE_URL)
 
 
-def public_address(host: str) -> str:
+def public_addresses(host: str) -> list[str]:
+    """Every resolved address, IPv4 first: hosts without an IPv6 route must not pick an AAAA answer."""
     addresses = {item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
     if not addresses or any(not ipaddress.ip_address(ip).is_global
                             or ipaddress.ip_address(ip).is_multicast
                             or ipaddress.ip_address(ip).is_reserved for ip in addresses):
         raise ValueError("non-public destination denied")
-    return sorted(addresses)[0]
+    return sorted(addresses, key=lambda ip: (ipaddress.ip_address(ip).version, ipaddress.ip_address(ip)))
 
 
 def tunnel(left: socket.socket, right: socket.socket) -> None:
@@ -169,17 +170,23 @@ def read_exact(stream, length: int) -> bytes:
 
 
 def dial(host: str, port: int, proxy: str | None = None) -> socket.socket:
-    # Resolve once, reject every non-global answer, connect to a pinned address.
-    address = public_address(host)
+    # Resolve once, reject every non-global answer, connect only to the pinned addresses.
+    addresses = public_addresses(host)
     if proxy:
         parsed = urlsplit(proxy)
         if parsed.scheme != "http" or not parsed.hostname or parsed.username:
             raise ValueError("trusted upstream proxy must be an unauthenticated http URL")
         conn = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=30)
-        conn.set_tunnel(address, port)
+        conn.set_tunnel(addresses[0], port)
         conn.connect()
         return conn.sock
-    return socket.create_connection((address, port), timeout=30)
+    error: OSError | None = None
+    for address in addresses:
+        try:
+            return socket.create_connection((address, port), timeout=30)
+        except OSError as exc:
+            error = exc
+    raise error
 
 
 @dataclass

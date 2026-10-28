@@ -11,7 +11,7 @@ import ssl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
-from common.integrity.attempt_gateway import AttemptGateway, GatewayConfig, public_address, tls_client_hello
+from common.integrity.attempt_gateway import AttemptGateway, GatewayConfig, dial, public_addresses, tls_client_hello
 from common.integrity.attempt_container import docker_command, validate_workspace_outputs
 
 
@@ -115,7 +115,20 @@ class AttemptBoundaryTests(unittest.TestCase):
                     ("::1",), ("224.0.0.1",), ("ff02::1",), ("8.8.8.8", "192.168.1.1")):
             rows = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 443)) for ip in ips]
             with patch("socket.getaddrinfo", return_value=rows), self.assertRaises(ValueError):
-                public_address("approved.example")
+                public_addresses("approved.example")
+
+    def test_dns_prefers_ipv4_and_falls_back_across_addresses(self):
+        rows = [(family, socket.SOCK_STREAM, 6, "", (ip, 443)) for family, ip in (
+            (socket.AF_INET6, "2408:400a:3e:ef00::1"), (socket.AF_INET, "39.96.213.166"), (socket.AF_INET, "8.152.159.24"))]
+        with patch("socket.getaddrinfo", return_value=rows):
+            self.assertEqual(public_addresses("dual.example"), ["8.152.159.24", "39.96.213.166", "2408:400a:3e:ef00::1"])
+            unreachable = OSError(101, "Network is unreachable")
+            with patch("socket.create_connection", side_effect=[unreachable, unreachable, "v6-socket"]) as connect:
+                self.assertEqual(dial("dual.example", 443), "v6-socket")
+            self.assertEqual([c.args[0][0] for c in connect.call_args_list],
+                             ["8.152.159.24", "39.96.213.166", "2408:400a:3e:ef00::1"])
+            with patch("socket.create_connection", side_effect=unreachable), self.assertRaises(OSError):
+                dial("dual.example", 443)
 
     def test_gateway_denies_unknown_local_and_evaluator_destinations(self):
         with tempfile.TemporaryDirectory() as directory:
